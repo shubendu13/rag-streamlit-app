@@ -1,0 +1,9 @@
+torch
+transformers
+sentence-transformers
+langchain
+chromadb
+streamlit
+Pillow
+peft
+langchain-community
