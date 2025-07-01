@@ -24,8 +24,8 @@ vectordb = Chroma(
 
 # Load the open-source LLM (TinyLlama or any other)
 llm = HuggingFacePipeline.from_model_id(
-    #"TinyLlama/TinyLlama-1.1B-Chat-v1.0", #Small model
-    "mistralai/Mistral-7B-Instruct-v0.1", #Large model
+    "TinyLlama/TinyLlama-1.1B-Chat-v1.0", #Small model
+    #"mistralai/Mistral-7B-Instruct-v0.1", #Large model
     task="text-generation",
     device=0 if device == "cuda" else -1
 )
