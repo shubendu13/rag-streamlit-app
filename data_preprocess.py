@@ -50,11 +50,12 @@ def get_clean_df_from_s3(bucket_name="your-bucket-name", prefix="ShopTalk/abo-ll
         line_number = 0
         for line in f:
             line_number += 1
-            print(f"🔹 Line {line_number}: raw bytes = {line[:60]}...")  # Print start of line
             decoded_line = line.decode('utf-8')
-            print(f"✅ Line {line_number} decoded: {decoded_line[:60]}...")  # Print start of decoded line
             json_obj = json.loads(decoded_line)
-            print(f"🟢 Line {line_number} loaded as JSON: {json_obj}")
+            # Print progress every 1000 lines
+            if line_number % 1000 == 0:
+                print(f"✅ Processed {line_number} lines from {key}")
+
             data.append(json_obj)
 
 
