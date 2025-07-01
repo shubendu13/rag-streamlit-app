@@ -15,10 +15,10 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Load embeddings and vector DB from EC2
 #Large model
-#embeddings = HuggingFaceEmbeddings(model_name="intfloat/e5-base")
+embeddings = HuggingFaceEmbeddings(model_name="intfloat/e5-base")
 
 #smaller model
-embeddings = HuggingFaceEmbeddings(model_name="intfloat/e5-small-v2")
+#embeddings = HuggingFaceEmbeddings(model_name="intfloat/e5-small-v2")
 vectordb = Chroma(
     persist_directory="./chroma_db",
     embedding_function=embeddings

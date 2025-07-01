@@ -8,6 +8,7 @@ from PIL import Image
 
 from sentence_transformers import SentenceTransformer
 from transformers import BlipProcessor, BlipForConditionalGeneration
+from transformers import Blip2Processor, Blip2ForConditionalGeneration
 
 from langchain.docstore.document import Document
 from langchain_community.vectorstores import Chroma
@@ -52,10 +53,12 @@ def prepare_index():
 
     # Larger models
     embedding_function = HuggingFaceEmbeddings(model_name="intfloat/e5-base-v2")
-    caption_processor = BlipProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
-    caption_model = BlipForConditionalGeneration.from_pretrained(
-        "Salesforce/blip2-opt-2.7b"
-    ).to("cuda" if torch.cuda.is_available() else "cpu")
+    caption_processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
+    caption_model = Blip2ForConditionalGeneration.from_pretrained(
+    "Salesforce/blip2-opt-2.7b",
+    device_map="auto",  # or use .to("cuda") if CUDA is available
+    torch_dtype=torch.float16  # Optional: speeds up on GPUs
+)
 
     documents = []
 
