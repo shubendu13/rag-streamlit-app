@@ -2,7 +2,7 @@ streamlit==1.34.0
 pillow
 boto3
 torch
-transformers==4.36.2
+transformers
 sentence-transformers
 langchain
 langchain-community
