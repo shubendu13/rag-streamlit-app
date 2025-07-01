@@ -5,10 +5,8 @@ from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.llms import HuggingFacePipeline
 from langchain.chains import RetrievalQA
-from PIL import Image
 import os
 import torch
-from data_preprocess import prepare_index
 
 # Set model device
 device = "cuda" if torch.cuda.is_available() else "cpu"
