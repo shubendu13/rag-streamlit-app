@@ -18,7 +18,7 @@ from data_preprocess import get_clean_df_from_s3  # make sure this exists
 # Constants
 BUCKET_NAME = "shubendu-rag-llm-app-bucket"
 IMAGE_PREFIX = "ShopTalk/abo-images-small/images/small/"
-CHROMA_PERSIST_PATH = "/tmp/chroma_db"  # local build path (then upload to S3)
+CHROMA_PERSIST_PATH = "./chroma_db"  # local chromadb path in EC2
 
 # S3 client
 s3 = boto3.client("s3")

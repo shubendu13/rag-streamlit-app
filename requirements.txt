@@ -1,9 +1,10 @@
+streamlit==1.34.0
+pillow
+boto3
 torch
 transformers
 sentence-transformers
 langchain
-chromadb
-streamlit
-Pillow
-peft
 langchain-community
+chromadb
+peft

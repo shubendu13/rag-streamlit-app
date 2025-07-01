@@ -34,14 +34,6 @@ qa = RetrievalQA.from_chain_type(
     return_source_documents=True
 )
 
-with st.sidebar.expander("⚙️ Settings", expanded=False):
-    st.markdown("Manually rebuild your ChromaDB index if data has changed.")
-
-    if st.button("🔄 Rebuild Index"):
-        with st.spinner("Rebuilding ChromaDB index..."):
-            prepare_index()
-        st.success("✅ Index rebuilt successfully!")
-
 st.title("🧠 Product Search (Text + Image RAG)")
 
 query = st.text_input("Enter your product-related query:")
