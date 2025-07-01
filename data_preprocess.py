@@ -35,43 +35,28 @@ def get_clean_df_from_s3(bucket_name="your-bucket-name", prefix="ShopTalk/abo-ll
                     print(f"⚠️ Skipping a line in {key} due to JSON error: {e}")"""
 
     for key in gz_files:
-        print(f"\n📥 Reading file: {key}")
+        print(f"📥 Reading file: {key}")
 
-    try:
-        obj = s3.get_object(Bucket=bucket_name, Key=key)
-        print(f"✅ Successfully fetched object from S3: {key}")
-    except Exception as e:
-        print(f"❌ Failed to fetch object from S3: {key} — {e}")
-        continue
+    # Fetch the object from S3
+    print("📦 Fetching object from S3...")
+    obj = s3.get_object(Bucket=bucket_name, Key=key)
 
-    try:
-        bytestream = io.BytesIO(obj["Body"].read())
-        print("🔄 Converted S3 object to byte stream")
-    except Exception as e:
-        print(f"❌ Failed to convert to byte stream: {e}")
-        continue
+    print("🔄 Reading byte stream from S3 object...")
+    bytestream = io.BytesIO(obj["Body"].read())
 
-    try:
-        with gzip.GzipFile(fileobj=bytestream, mode='rb') as f:
-            print("📂 Opened Gzip file, starting to read lines...")
-            line_count = 0
-            success_count = 0
-            fail_count = 0
+    print("🗜️ Decompressing GZIP content...")
+    with gzip.GzipFile(fileobj=bytestream, mode='rb') as f:
+        print("📃 Starting line-by-line read and JSON decode...")
+        line_number = 0
+        for line in f:
+            line_number += 1
+            print(f"🔹 Line {line_number}: raw bytes = {line[:60]}...")  # Print start of line
+            decoded_line = line.decode('utf-8')
+            print(f"✅ Line {line_number} decoded: {decoded_line[:60]}...")  # Print start of decoded line
+            json_obj = json.loads(decoded_line)
+            print(f"🟢 Line {line_number} loaded as JSON: {json_obj}")
+            data.append(json_obj)
 
-            for line in f:
-                line_count += 1
-                try:
-                    decoded_line = line.decode('utf-8')
-                    data.append(json.loads(decoded_line))
-                    success_count += 1
-                except json.JSONDecodeError as e:
-                    print(f"⚠️ Skipping line {line_count} in {key} due to JSON error: {e}")
-                    fail_count += 1
-
-            print(f"✅ Done reading {key} — total: {line_count} lines, parsed: {success_count}, errors: {fail_count}")
-
-    except Exception as e:
-        print(f"❌ Failed to process Gzip file for {key}: {e}")
 
 
     df = pd.DataFrame(data)
