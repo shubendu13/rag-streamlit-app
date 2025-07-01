@@ -21,7 +21,7 @@ def get_clean_df_from_s3(bucket_name="your-bucket-name", prefix="ShopTalk/abo-ll
 
     data = []
 
-    for key in gz_files:
+    """for key in gz_files:
         print(f"📥 Reading file: {key}")
         obj = s3.get_object(Bucket=bucket_name, Key=key)
         bytestream = io.BytesIO(obj["Body"].read())
@@ -32,9 +32,50 @@ def get_clean_df_from_s3(bucket_name="your-bucket-name", prefix="ShopTalk/abo-ll
                     decoded_line = line.decode('utf-8')
                     data.append(json.loads(decoded_line))
                 except json.JSONDecodeError as e:
-                    print(f"⚠️ Skipping a line in {key} due to JSON error: {e}")
+                    print(f"⚠️ Skipping a line in {key} due to JSON error: {e}")"""
+
+    for key in gz_files:
+        print(f"\n📥 Reading file: {key}")
+
+    try:
+        obj = s3.get_object(Bucket=bucket_name, Key=key)
+        print(f"✅ Successfully fetched object from S3: {key}")
+    except Exception as e:
+        print(f"❌ Failed to fetch object from S3: {key} — {e}")
+        continue
+
+    try:
+        bytestream = io.BytesIO(obj["Body"].read())
+        print("🔄 Converted S3 object to byte stream")
+    except Exception as e:
+        print(f"❌ Failed to convert to byte stream: {e}")
+        continue
+
+    try:
+        with gzip.GzipFile(fileobj=bytestream, mode='rb') as f:
+            print("📂 Opened Gzip file, starting to read lines...")
+            line_count = 0
+            success_count = 0
+            fail_count = 0
+
+            for line in f:
+                line_count += 1
+                try:
+                    decoded_line = line.decode('utf-8')
+                    data.append(json.loads(decoded_line))
+                    success_count += 1
+                except json.JSONDecodeError as e:
+                    print(f"⚠️ Skipping line {line_count} in {key} due to JSON error: {e}")
+                    fail_count += 1
+
+            print(f"✅ Done reading {key} — total: {line_count} lines, parsed: {success_count}, errors: {fail_count}")
+
+    except Exception as e:
+        print(f"❌ Failed to process Gzip file for {key}: {e}")
+
 
     df = pd.DataFrame(data)
+    print("=> Dataframe created")
 
     # Drop irrelevant columns
     drop_cols = [
@@ -70,6 +111,7 @@ def get_clean_df_from_s3(bucket_name="your-bucket-name", prefix="ShopTalk/abo-ll
         if col in df.columns:
             df[col] = df[col].apply(extract_value_from_nested)
 
+    print("=> All columns are processed and removed not required columns")
     # Create text_blob
     def create_text_blob(row):
         parts = [
@@ -86,6 +128,7 @@ def get_clean_df_from_s3(bucket_name="your-bucket-name", prefix="ShopTalk/abo-ll
 
     df["text_blob"] = df.apply(create_text_blob, axis=1)
 
+    print("=> created text_blob column and added to Dataframe")
     # Final cleanup
     df = df[["item_id", "main_image_id", "other_image_id", "text_blob"]]
     df.dropna(subset=["item_id", "main_image_id", "text_blob"], inplace=True)

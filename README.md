@@ -28,7 +28,7 @@ This project implements a **Retrieval-Augmented Generation (RAG)** system that:
 ```
 project-root/
 ├── app.py # Streamlit UI with RAG pipeline
-├── prepare_index.py # Embeds text + images and stores in Chroma
+├── prepare_index.py # Embeds text + images and stores in Chroma in EC2 docker image
 ├── data_preprocess.py # Extracts and cleans JSON data
 ├── requirements.txt
 ├── Dockerfile
@@ -41,67 +41,115 @@ project-root/
 
 ---
 
-## 🚀 Quickstart (Local)
 
-### 1️⃣ Clone the Repo
-```bash
-git clone https://github.com/yourname/rag-product-search.git
-cd rag-product-search
-```
-### 2️⃣ Install Dependencies
-```bash
-pip install -r requirements.txt
-```
+# 🧠 RAG Streamlit App Deployment on AWS EC2 with Docker
 
-### 3️⃣ Prepare Data
-```bash
-python prepare_index.py
-# Or run via Streamlit UI as Rebuild Index
-```
+This guide walks you through deploying your Retrieval-Augmented Generation (RAG) app with Streamlit, ChromaDB, and image captioning on AWS EC2 using Docker.
 
-### 4️⃣ Launch the App
+---
+
+## 📦 Prerequisites
+
+- AWS account
+- EC2 instance (Ubuntu recommended, t2.medium or higher)
+- Port 8501 opened in the security group
+- GitHub repository with your app (e.g., `rag-streamlit-app`)
+- Docker installed on EC2
+- AWS CLI configured (optional if uploading to S3)
+
+---
+
+## 🚀 1. Launch & Connect to EC2
+
+- Launch EC2 instance from AWS Console
+- Open **port 22** (SSH) and **8501** (for Streamlit)
+- SSH into your EC2:
+
 ```bash
-streamlit run app.py
+ssh -i "your-key.pem" ubuntu@<your-ec2-public-ip>
 ```
 
 ---
 
-## 🐳 Run with Docker
+## 🐳 2. Install Docker on EC2
 
-### 1️⃣ Build Docker Image
+```bash
+sudo apt update
+sudo apt install -y docker.io
+sudo usermod -aG docker $USER
+newgrp docker
 ```
+
+---
+
+## 📁 3. Clone Your App
+
+```bash
+git clone https://github.com/<your-username>/rag-streamlit-app.git
+cd rag-streamlit-app
+```
+
+---
+
+## 📦 4. Build Docker Image
+
+```bash
 docker build -t rag-app .
 ```
 
-### 2️⃣ Run the App
-```
-docker run -p 8501:8501 rag-app
+---
+
+## ▶️ 5. Run Docker Container
+
+```bash
+docker run -d -p 8501:8501 --name rag-container rag-app
 ```
 
 ---
 
-## Query Example
+## 🌐 6. Access the App
+
+Visit in your browser:
+
 ```
-#### Query:
-“white Nike t-shirt for a child”
-
-#### Output:
-
-🔤 Matched via text or image caption
-
-🖼 Image displayed
-
-🤖 TinyLlama generates a final answer
+http://<your-ec2-public-ip>:8501
 ```
+
 ---
 
-## Future Enhancements - GitHub Actions
+## 🧹 7. Debugging
 
+Check logs:
+
+```bash
+docker logs rag-container
 ```
-To enable CI/CD with Docker:
 
-Add .github/workflows/deploy.yml
+Remove stale containers:
 
-Use GitHub secrets to store DockerHub or AWS credentials
+```bash
+docker rm -f rag-container
+```
 
-Auto-build Docker image on main push or schedule```
+Rebuild if needed:
+
+```bash
+docker build --no-cache -t rag-app .
+docker run -d -p 8501:8501 --name rag-container rag-app
+```
+
+---
+
+## 💾 8. Optional: Upload ChromaDB to S3
+
+If enabled in your code:
+
+```bash
+aws s3 cp --recursive ./chroma_db s3://your-s3-bucket/chroma_db
+```
+
+---
+
+## ✅ Done!
+
+You're now running a fully functional RAG + Streamlit app with image captioning on EC2 using Docker.
