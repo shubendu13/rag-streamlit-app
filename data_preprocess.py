@@ -1,64 +1,62 @@
-# data_preprocess.py
-
-import zipfile
-import json
+import boto3
 import pandas as pd
-import os
 import gzip
-from google.colab import drive
+import json
+import io
 
-# Set pandas option to display all columns
-pd.set_option('display.max_columns', None)
+def get_clean_df_from_s3(bucket_name="your-bucket-name", prefix="ShopTalk/abo-llistings/"):
+    s3 = boto3.client("s3")
+    paginator = s3.get_paginator("list_objects_v2")
 
-def get_clean_df():
-    # Mount Google Drive
-    drive.mount('/content/drive')
 
-    # Path to JSON files in Drive
-    directory_path = "/content/drive/My Drive/Colab Notebooks/ShopTalkData/abo-listings/listings/metadata/"
+    # Use paginator to fetch all pages of .json.gz files
+    gz_files = []
+    print(f"🔍 Searching for .json.gz files in s3://{bucket_name}/{prefix} ...")
+    for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            if obj["Key"].endswith(".json.gz"):
+                gz_files.append(obj["Key"])
 
-    # List all .json.gz files
-    gz_files = [f for f in os.listdir(directory_path) if f.endswith('.json.gz')]
+    print(f"📂 Found {len(gz_files)} gzipped JSON files.")
+
     data = []
-    print(f"Found {len(gz_files)} gzipped JSON files.")
 
-    # Read and parse all files
-    for file_name in gz_files:
-        file_path = os.path.join(directory_path, file_name)
-        print(f"Reading file: {file_name}")
-        try:
-            with gzip.open(file_path, 'rt', encoding='utf-8') as f:
-                for line_num, line in enumerate(f):
-                    try:
-                        data.append(json.loads(line))
-                    except json.JSONDecodeError as e:
-                        print(f"Skipping line {line_num + 1} in {file_name} due to JSONDecodeError: {e}")
-        except Exception as e:
-            print(f"Error reading file {file_name}: {e}")
+    for key in gz_files:
+        print(f"📥 Reading file: {key}")
+        obj = s3.get_object(Bucket=bucket_name, Key=key)
+        bytestream = io.BytesIO(obj["Body"].read())
 
-    print(f"Finished reading {len(data)} records from gzipped JSON files.")
+        with gzip.GzipFile(fileobj=bytestream, mode='rb') as f:
+            for line in f:
+                try:
+                    decoded_line = line.decode('utf-8')
+                    data.append(json.loads(decoded_line))
+                except json.JSONDecodeError as e:
+                    print(f"⚠️ Skipping a line in {key} due to JSON error: {e}")
 
-    # Flattening
-    df = pd.DataFrame(data).drop(columns=[
+    df = pd.DataFrame(data)
+
+    # Drop irrelevant columns
+    drop_cols = [
         'item_weight', 'model_year', 'model_number', '3dmodel_id', 'finish_type', 'country',
-        'marketplace', 'domain_name', 'node', 'spin_id', 'model_name', 'style', 'fabric_type',
-        'pattern', 'finish_type', 'item_shape', 'item_dimensions'
-    ])
+        'marketplace', 'domain_name', 'node', 'spin_id', 'model_name', 'style',
+        'fabric_type', 'pattern', 'finish_type', 'item_shape', 'item_dimensions'
+    ]
+    df.drop(columns=[col for col in drop_cols if col in df.columns], errors='ignore', inplace=True)
 
-    # Extract 'en_US' values
+    # Extract 'en_US' from language-tagged fields
     def extract_en_us_value(data):
         if isinstance(data, list):
-            values = [item['value'] for item in data if isinstance(item, dict) and item.get('language_tag') == 'en_US' and 'value' in item]
+            values = [item['value'] for item in data if isinstance(item, dict) and item.get('language_tag') == 'en_US']
             return ' '.join(values)
         return None
 
-    columns_to_process_lang = ['brand', 'bullet_point', 'color', 'item_name', 'item_keywords', 'material', 'fabric_type', 'product_description']
-    for col in columns_to_process_lang:
+    for col in ['brand', 'bullet_point', 'color', 'item_name', 'item_keywords', 'material', 'product_description']:
         if col in df.columns:
             df[col + '_en_US'] = df[col].apply(extract_en_us_value)
-    df = df.drop(columns=columns_to_process_lang, errors='ignore')
+            df.drop(columns=col, inplace=True)
 
-    # Extract values from nested
+    # Flatten nested fields
     def extract_value_from_nested(data):
         if isinstance(data, list) and len(data) > 0:
             if isinstance(data[0], dict) and 'value' in data[0]:
@@ -68,14 +66,11 @@ def get_clean_df():
             return data['value']
         return data
 
-    columns_with_nested = ['product_type', 'color_code', 'other_image_id']
-    for col in columns_with_nested:
+    for col in ['product_type', 'color_code', 'other_image_id']:
         if col in df.columns:
             df[col] = df[col].apply(extract_value_from_nested)
 
     # Create text_blob
-    max_text_blob_length = 500
-
     def create_text_blob(row):
         parts = [
             str(row.get("item_name_en_US", "")),
@@ -83,18 +78,17 @@ def get_clean_df():
             str(row.get("item_keywords_en_US", "")),
             str(row.get("product_type", "")),
             str(row.get("brand_en_US", "")),
-            str(row.get("color_en_US")),
+            str(row.get("color_en_US", "")),
             str(row.get("material_en_US", "")),
             str(row.get("product_description_en_US", ""))
         ]
-        return " | ".join([p for p in parts if p and str(p).lower() not in ("nan", "none")])[:max_text_blob_length]
+        return " | ".join([p for p in parts if p and str(p).lower() not in ("nan", "none")])[:500]
 
     df["text_blob"] = df.apply(create_text_blob, axis=1)
 
-    cols_to_drop = [
-        "item_name_en_US", "bullet_point_en_US", "item_keywords_en_US", "product_type",
-        "brand_en_US", "color_en_US", "color_code", "material_en_US", "product_description_en_US"
-    ]
-    df.drop(columns=cols_to_drop, inplace=True)
+    # Final cleanup
+    df = df[["item_id", "main_image_id", "other_image_id", "text_blob"]]
+    df.dropna(subset=["item_id", "main_image_id", "text_blob"], inplace=True)
 
+    print(f"✅ Clean DataFrame ready with {len(df)} rows.")
     return df

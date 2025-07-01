@@ -13,10 +13,14 @@ from data_preprocess import prepare_index
 # Set model device
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# Load embeddings and vector DB from Google Drive
+# Load embeddings and vector DB from EC2
+#Large model
+#embeddings = HuggingFaceEmbeddings(model_name="intfloat/e5-base")
+
+#smaller model
 embeddings = HuggingFaceEmbeddings(model_name="intfloat/e5-small-v2")
 vectordb = Chroma(
-    persist_directory="/content/drive/My Drive/Colab Notebooks/ShopTalkData/chroma_db",
+    persist_directory="./chroma_db",
     embedding_function=embeddings
 )
 
