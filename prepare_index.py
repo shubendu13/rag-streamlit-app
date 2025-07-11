@@ -1,10 +1,14 @@
-# prepare_index.py (S3-compatible version)
+# prepare_index.py
+
 
 import os
 import io
 import boto3
 import torch
+import pandas as pd
 from PIL import Image
+from io import BytesIO
+
 
 from sentence_transformers import SentenceTransformer
 from transformers import BlipProcessor, BlipForConditionalGeneration
@@ -14,32 +18,42 @@ from langchain.docstore.document import Document
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 
-from data_preprocess import get_clean_df_from_s3  # make sure this exists
+from data_preprocess import get_clean_df_from_s3
 
 # Constants
 BUCKET_NAME = "shubendu-rag-llm-app-bucket"
-IMAGE_PREFIX = "ShopTalk/abo-images-small/images/small/"
-CHROMA_PERSIST_PATH = "./chroma_db"  # local chromadb path in EC2
+CHROMA_PERSIST_PATH = "./chroma_db" # local chromadb path in EC2
+IMAGE_METADATA_KEY_PATH = "ShopTalk/abo-images-small/metadata/images.csv.gz"
 
-# S3 client
 s3 = boto3.client("s3")
 
+# Get the gzipped file from S3
+response = s3.get_object(Bucket=BUCKET_NAME, Key=IMAGE_METADATA_KEY_PATH)
 
-def download_image_from_s3(main_image_id):
-    """Searches and downloads image by image_id from S3."""
-    paginator = s3.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix=IMAGE_PREFIX):
-        for obj in page.get("Contents", []):
-            key = obj["Key"]
-            if main_image_id.lower() in key.lower():
-                try:
-                    response = s3.get_object(Bucket=BUCKET_NAME, Key=key)
-                    image_bytes = response["Body"].read()
-                    return Image.open(io.BytesIO(image_bytes)).convert("RGB"), key
-                except Exception as e:
-                    print(f"Failed to read image {key}: {e}")
-    return None, None
+# Read the compressed body
+gzipped_body = response['Body'].read()
 
+# Use BytesIO + gzip to decompress
+with gzip.GzipFile(fileobj=BytesIO(gzipped_body)) as gz:
+    image_meta_df = pd.read_csv(gz)
+
+
+#Creates a Python dictionary: image_id → s3 path
+image_id_to_path = dict(zip(image_meta_df["image_id"].str.lower(), image_meta_df["path"]))
+
+def get_image_by_id_from_metadata(image_id):
+    """Retrieve image directly from S3 using metadata path."""
+    key = image_id_to_path.get(image_id.lower())
+    if not key:
+        return None, None
+    try:
+        key = "ShopTalk/abo-images-small/small/"+key
+        response = s3.get_object(Bucket=BUCKET_NAME, Key=key)
+        image_bytes = response["Body"].read()
+        return Image.open(io.BytesIO(image_bytes)).convert("RGB"), key
+    except Exception as e:
+        print(f"[❌ Failed] Could not fetch {key} from S3: {e}")
+        return None, key
 
 def prepare_index():
     df = get_clean_df_from_s3(BUCKET_NAME)
@@ -55,10 +69,8 @@ def prepare_index():
     embedding_function = HuggingFaceEmbeddings(model_name="intfloat/e5-base-v2")
     caption_processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
     caption_model = Blip2ForConditionalGeneration.from_pretrained(
-    "Salesforce/blip2-opt-2.7b",
-    device_map="auto",  # or use .to("cuda") if CUDA is available
-    torch_dtype=torch.float16  # Optional: speeds up on GPUs
-)
+        "Salesforce/blip2-opt-2.7b", device_map="auto", torch_dtype=torch.float16
+    )
 
     documents = []
 
@@ -67,26 +79,33 @@ def prepare_index():
         text_blob = str(row["text_blob"])
         main_image_id = str(row["main_image_id"]).lower()
 
-        # Add text entry
-        documents.append(Document(
-            page_content=text_blob,
-            metadata={"item_id": item_id, "type": "text", "image_path": None}
-        ))
-
-        # Add image caption
-        img, s3_key = download_image_from_s3(main_image_id)
+        # Fetch and caption image
+        img, s3_key = get_image_by_id_from_metadata(main_image_id)
         if img:
             try:
                 inputs = caption_processor(img, return_tensors="pt").to(caption_model.device)
                 out = caption_model.generate(**inputs)
                 caption = caption_processor.decode(out[0], skip_special_tokens=True)
-
-                documents.append(Document(
-                    page_content=caption,
-                    metadata={"item_id": item_id, "type": "image", "image_path": f"s3://{BUCKET_NAME}/{s3_key}"}
-                ))
+                image_path = f"s3://{BUCKET_NAME}/{s3_key}"
             except Exception as e:
-                print(f"[BLIP caption error] {s3_key}: {e}")
+                print(f"[BLIP error] Failed to caption {main_image_id}: {e}")
+                caption = ""
+                image_path = None
+        else:
+            caption = ""
+            image_path = None
+
+        # Merge text_blob and caption
+        combined_text = f"{text_blob} | {caption}" if caption else text_blob
+        combined_text = combined_text[:500]
+
+        documents.append(Document(
+            page_content=combined_text,
+            metadata={
+                "item_id": item_id,
+                "image_path": image_path
+            }
+        ))
 
     # Build ChromaDB index locally
     vectordb = Chroma.from_documents(

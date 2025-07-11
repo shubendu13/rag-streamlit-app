@@ -1,10 +1,12 @@
+# data_preprocess.py
+
 import boto3
 import pandas as pd
 import gzip
 import json
 import io
 
-def get_clean_df_from_s3(bucket_name="your-bucket-name", prefix="ShopTalk/abo-llistings/"):
+def get_clean_df_from_s3(bucket_name="shubendu-rag-llm-app-bucket", prefix="ShopTalk/abo-llistings/"):
     s3 = boto3.client("s3")
     paginator = s3.get_paginator("list_objects_v2")
 
@@ -18,7 +20,6 @@ def get_clean_df_from_s3(bucket_name="your-bucket-name", prefix="ShopTalk/abo-ll
                 gz_files.append(obj["Key"])
 
     print(f"📂 Found {len(gz_files)} gzipped JSON files.")
-
     data = []
 
     """for key in gz_files:
@@ -59,9 +60,8 @@ def get_clean_df_from_s3(bucket_name="your-bucket-name", prefix="ShopTalk/abo-ll
             data.append(json_obj)
 
 
-
     df = pd.DataFrame(data)
-    print("=> Dataframe created")
+    print("📄 DataFrame created.")
 
     # Drop irrelevant columns
     drop_cols = [
@@ -102,13 +102,13 @@ def get_clean_df_from_s3(bucket_name="your-bucket-name", prefix="ShopTalk/abo-ll
     def create_text_blob(row):
         parts = [
             str(row.get("item_name_en_US", "")),
-            str(row.get("bullet_point_en_US", "")),
+            str(row.get("product_description_en_US", "")),
             str(row.get("item_keywords_en_US", "")),
+            str(row.get("bullet_point_en_US", "")),
             str(row.get("product_type", "")),
             str(row.get("brand_en_US", "")),
             str(row.get("color_en_US", "")),
-            str(row.get("material_en_US", "")),
-            str(row.get("product_description_en_US", ""))
+            str(row.get("material_en_US", ""))
         ]
         return " | ".join([p for p in parts if p and str(p).lower() not in ("nan", "none")])[:500]
 
@@ -120,4 +120,7 @@ def get_clean_df_from_s3(bucket_name="your-bucket-name", prefix="ShopTalk/abo-ll
     df.dropna(subset=["item_id", "main_image_id", "text_blob"], inplace=True)
 
     print(f"✅ Clean DataFrame ready with {len(df)} rows.")
-    return df
+
+    df.head()
+
+    return df[:100]
