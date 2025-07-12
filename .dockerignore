@@ -1,0 +1,41 @@
+# Python bytecode and cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+
+# Logs and temp files
+*.log
+*.tmp
+*.bak
+
+# Editor/IDE config
+.vscode/
+.idea/
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Hugging Face or PyTorch model files (will re-download at runtime)
+*.bin
+*.safetensors
+*.pt
+
+# Streamlit and env config
+.env
+streamlit_cache/
+venv/
+.venv/
+
+# Big datasets/images - already accessible locally or via path
+data/
+abo-images-small/
+datasets/
+images/
+*.zip
+*.tar
+*.gz
+*.csv

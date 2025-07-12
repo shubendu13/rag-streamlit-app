@@ -75,6 +75,7 @@ def prepare_index():
 
     documents = []
 
+    print(f"📁 Going through each df row and doing captioning")
     for _, row in df.iterrows():
         item_id = str(row["item_id"])
         text_blob = str(row["text_blob"])
@@ -108,6 +109,7 @@ def prepare_index():
             }
         ))
 
+    print(f"📁 Building Chroma index locally")
     # Build ChromaDB index locally
     vectordb = Chroma.from_documents(
         documents, embedding_function, persist_directory=CHROMA_PERSIST_PATH
