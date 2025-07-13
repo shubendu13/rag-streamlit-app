@@ -1,6 +1,5 @@
 # prepare_index.py
 
-
 import os
 import io
 import boto3
@@ -9,7 +8,6 @@ import gzip
 import pandas as pd
 from PIL import Image
 from io import BytesIO
-
 
 from sentence_transformers import SentenceTransformer
 from transformers import BlipProcessor, BlipForConditionalGeneration
@@ -26,16 +24,12 @@ BUCKET_NAME = "shubendu-rag-llm-app-bucket"
 CHROMA_PERSIST_PATH = "./chroma_db" # local chromadb path in EC2
 IMAGE_METADATA_KEY_PATH = "ShopTalk/abo-images-small/metadata/images.csv.gz"
 
+# S3 Client
 s3 = boto3.client("s3")
 
 # Get the gzipped file from S3
 response = s3.get_object(Bucket=BUCKET_NAME, Key=IMAGE_METADATA_KEY_PATH)
-
-# Read the compressed body
-gzipped_body = response['Body'].read()
-
-# Use BytesIO + gzip to decompress
-with gzip.GzipFile(fileobj=BytesIO(gzipped_body)) as gz:
+with gzip.GzipFile(fileobj=BytesIO(response['Body'].read())) as gz:
     image_meta_df = pd.read_csv(gz)
 
 
@@ -48,7 +42,7 @@ def get_image_by_id_from_metadata(image_id):
     if not key:
         return None, None
     try:
-        key = "ShopTalk/abo-images-small/small/"+key
+        key = f"ShopTalk/abo-images-small/small/{key}"
         response = s3.get_object(Bucket=BUCKET_NAME, Key=key)
         image_bytes = response["Body"].read()
         return Image.open(io.BytesIO(image_bytes)).convert("RGB"), key
@@ -74,55 +68,59 @@ def prepare_index():
     )
 
     documents = []
+    print("📁 Starting document creation and image captioning...")
 
     print(f"📁 Going through each df row and doing captioning")
     for idx, row in enumerate(df.iterrows(), 1):  # Start index from 1
         _, row = row
-    item_id = str(row["item_id"])
-    text_blob = str(row["text_blob"])
-    main_image_id = str(row["main_image_id"]).lower()
+        item_id = str(row["item_id"])
+        text_blob = str(row["text_blob"])
+        main_image_id = str(row["main_image_id"]).lower()
 
-    # Fetch and caption image
-    img, s3_key = get_image_by_id_from_metadata(main_image_id)
-    if img:
-        try:
-            inputs = caption_processor(img, return_tensors="pt").to(caption_model.device)
-            out = caption_model.generate(**inputs)
-            caption = caption_processor.decode(out[0], skip_special_tokens=True)
-            image_path = f"s3://{BUCKET_NAME}/{s3_key}"
-        except Exception as e:
-            print(f"[BLIP error] Failed to caption {main_image_id}: {e}")
+        # Fetch and caption image
+        img, s3_key = get_image_by_id_from_metadata(main_image_id)
+
+        if img:
+            try:
+                inputs = caption_processor(img, return_tensors="pt").to(caption_model.device)
+                out = caption_model.generate(**inputs)
+                caption = caption_processor.decode(out[0], skip_special_tokens=True)
+                image_path = f"s3://{BUCKET_NAME}/{s3_key}"
+            except Exception as e:
+                print(f"[BLIP error] Failed to caption {main_image_id}: {e}")
+                caption = ""
+                image_path = None
+        else:
             caption = ""
             image_path = None
-    else:
-        caption = ""
-        image_path = None
 
-    # Merge text_blob and caption
-    combined_text = f"{text_blob} | {caption}" if caption else text_blob
+        # Merge text_blob and caption
+        combined_text = f"{text_blob} | {caption}" if caption else text_blob
 
-    documents.append(Document(
-        page_content=combined_text,
-        metadata={
-            "item_id": item_id,
-            "image_path": image_path
-        }
-    ))
+        documents.append(Document(
+            page_content=combined_text,
+            metadata={
+                "item_id": item_id,
+                "image_path": image_path
+            }
+        ))
 
-    # ✅ Print progress every 10,000 items
-    if idx % 5000 == 0:
-        print(f"✅ Processed {idx} rows")
+        # ✅ Print progress every 5,000 items
+        if idx % 5000 == 0:
+            print(f"✅ Processed {idx} rows")
 
-    print(f"📁 Building Chroma index locally")
-    # Build ChromaDB index locally
+    print("📁 Building Chroma index locally")
     vectordb = Chroma.from_documents(
-        documents, embedding_function, persist_directory=CHROMA_PERSIST_PATH
+        documents,
+        embedding_function,
+        persist_directory=CHROMA_PERSIST_PATH
     )
+
+    # Optional: remove if using ChromaDB >= 0.4.x
     vectordb.persist()
 
     print(f"\n✅ ChromaDB index created with {len(documents)} documents.")
     print(f"📁 Local Chroma stored at: {CHROMA_PERSIST_PATH}")
-
 
 if __name__ == "__main__":
     prepare_index()
