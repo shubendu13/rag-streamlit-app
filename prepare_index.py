@@ -76,38 +76,42 @@ def prepare_index():
     documents = []
 
     print(f"📁 Going through each df row and doing captioning")
-    for _, row in df.iterrows():
-        item_id = str(row["item_id"])
-        text_blob = str(row["text_blob"])
-        main_image_id = str(row["main_image_id"]).lower()
+    for idx, row in enumerate(df.iterrows(), 1):  # Start index from 1
+        _, row = row
+    item_id = str(row["item_id"])
+    text_blob = str(row["text_blob"])
+    main_image_id = str(row["main_image_id"]).lower()
 
-        # Fetch and caption image
-        img, s3_key = get_image_by_id_from_metadata(main_image_id)
-        if img:
-            try:
-                inputs = caption_processor(img, return_tensors="pt").to(caption_model.device)
-                out = caption_model.generate(**inputs)
-                caption = caption_processor.decode(out[0], skip_special_tokens=True)
-                image_path = f"s3://{BUCKET_NAME}/{s3_key}"
-            except Exception as e:
-                print(f"[BLIP error] Failed to caption {main_image_id}: {e}")
-                caption = ""
-                image_path = None
-        else:
+    # Fetch and caption image
+    img, s3_key = get_image_by_id_from_metadata(main_image_id)
+    if img:
+        try:
+            inputs = caption_processor(img, return_tensors="pt").to(caption_model.device)
+            out = caption_model.generate(**inputs)
+            caption = caption_processor.decode(out[0], skip_special_tokens=True)
+            image_path = f"s3://{BUCKET_NAME}/{s3_key}"
+        except Exception as e:
+            print(f"[BLIP error] Failed to caption {main_image_id}: {e}")
             caption = ""
             image_path = None
+    else:
+        caption = ""
+        image_path = None
 
-        # Merge text_blob and caption
-        combined_text = f"{text_blob} | {caption}" if caption else text_blob
-        combined_text = combined_text
+    # Merge text_blob and caption
+    combined_text = f"{text_blob} | {caption}" if caption else text_blob
 
-        documents.append(Document(
-            page_content=combined_text,
-            metadata={
-                "item_id": item_id,
-                "image_path": image_path
-            }
-        ))
+    documents.append(Document(
+        page_content=combined_text,
+        metadata={
+            "item_id": item_id,
+            "image_path": image_path
+        }
+    ))
+
+    # ✅ Print progress every 10,000 items
+    if idx % 5000 == 0:
+        print(f"✅ Processed {idx} rows")
 
     print(f"📁 Building Chroma index locally")
     # Build ChromaDB index locally

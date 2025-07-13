@@ -22,44 +22,28 @@ def get_clean_df_from_s3(bucket_name="shubendu-rag-llm-app-bucket", prefix="Shop
     print(f"📂 Found {len(gz_files)} gzipped JSON files.")
     data = []
 
-    """for key in gz_files:
-        print(f"📥 Reading file: {key}")
-        obj = s3.get_object(Bucket=bucket_name, Key=key)
-        bytestream = io.BytesIO(obj["Body"].read())
-
-        with gzip.GzipFile(fileobj=bytestream, mode='rb') as f:
-            for line in f:
-                try:
-                    decoded_line = line.decode('utf-8')
-                    data.append(json.loads(decoded_line))
-                except json.JSONDecodeError as e:
-                    print(f"⚠️ Skipping a line in {key} due to JSON error: {e}")"""
-
+    # Read all files one by one
     for key in gz_files:
-        print(f"📥 Reading file: {key}")
+        print(f"\n📥 Reading file: {key}")
+        try:
+            obj = s3.get_object(Bucket=bucket_name, Key=key)
+            bytestream = io.BytesIO(obj["Body"].read())
 
-    # Fetch the object from S3
-    print("📦 Fetching object from S3...")
-    obj = s3.get_object(Bucket=bucket_name, Key=key)
+            with gzip.GzipFile(fileobj=bytestream, mode='rb') as f:
+                for line_number, line in enumerate(f, 1):
+                    try:
+                        decoded_line = line.decode('utf-8')
+                        json_obj = json.loads(decoded_line)
+                        data.append(json_obj)
 
-    print("🔄 Reading byte stream from S3 object...")
-    bytestream = io.BytesIO(obj["Body"].read())
+                        if line_number % 5000 == 0:
+                            print(f"✅ {line_number} lines processed in {key}")
+                    except json.JSONDecodeError as e:
+                        print(f"⚠️ Skipping line {line_number} in {key} due to JSON error: {e}")
+        except Exception as e:
+            print(f"❌ Failed to process {key}: {e}")
 
-    print("🗜️ Decompressing GZIP content...")
-    with gzip.GzipFile(fileobj=bytestream, mode='rb') as f:
-        print("📃 Starting line-by-line read and JSON decode...")
-        line_number = 0
-        for line in f:
-            line_number += 1
-            decoded_line = line.decode('utf-8')
-            json_obj = json.loads(decoded_line)
-            # Print progress every 1000 lines
-            if line_number % 1000 == 0:
-                print(f"✅ Processed {line_number} lines from {key}")
-
-            data.append(json_obj)
-
-
+    print(f"\n📊 Total records collected: {len(data)}")
     df = pd.DataFrame(data)
     print("📄 DataFrame created.")
 
