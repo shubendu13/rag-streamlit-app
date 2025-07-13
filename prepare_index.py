@@ -99,7 +99,7 @@ def prepare_index():
 
         # Merge text_blob and caption
         combined_text = f"{text_blob} | {caption}" if caption else text_blob
-        combined_text = combined_text[:500]
+        combined_text = combined_text
 
         documents.append(Document(
             page_content=combined_text,

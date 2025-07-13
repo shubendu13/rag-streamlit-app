@@ -110,7 +110,7 @@ def get_clean_df_from_s3(bucket_name="shubendu-rag-llm-app-bucket", prefix="Shop
             str(row.get("color_en_US", "")),
             str(row.get("material_en_US", ""))
         ]
-        return " | ".join([p for p in parts if p and str(p).lower() not in ("nan", "none")])[:500]
+        return " | ".join([p for p in parts if p and str(p).lower() not in ("nan", "none")])[:200]
 
     df["text_blob"] = df.apply(create_text_blob, axis=1)
 
@@ -123,4 +123,4 @@ def get_clean_df_from_s3(bucket_name="shubendu-rag-llm-app-bucket", prefix="Shop
 
     df.head()
 
-    return df[:100]
+    return df
