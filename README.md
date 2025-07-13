@@ -1,151 +1,101 @@
-# 🧠 RAG-Based Product Search (Text + Image) with Streamlit + LangChain + ChromaDB
+# 🧠 RAG Product Search App (Text + Image)
 
-This project implements a **Retrieval-Augmented Generation (RAG)** system that:
-- Captions product images using **BLIP-2**
-- Embeds product data using **E5-small-v2**
-- Stores everything in **ChromaDB**
-- Answers product-related queries using **TinyLlama**
-- Displays results with product image, text, and a natural language response via **Streamlit**
+This project is a full-stack **Retrieval-Augmented Generation (RAG)** application to search product data using **text queries** and **image captions**. It's powered by:
+
+- 🔍 BLIP-2 for image captioning
+- ✍️ `intfloat/e5-base-v2` for text + caption embeddings
+- 🧠 ChromaDB as the vector store
+- 🖼️ Streamlit as the web interface
+- 🐳 Docker & Docker Compose for containerized deployment
 
 ---
 
 ## 📌 Features
 
-| Feature                    | Description                                                                 |
-|---------------------------|-----------------------------------------------------------------------------|
-| 🖼️ Image Captioning       | Uses `BLIP-2` to auto-generate captions for images                          |
-| 🔤 Text Embedding         | Uses `E5-small-v2` to embed product names, bullet points, descriptions     |
-| 🧲 Vector Store           | Stores embeddings in **ChromaDB** with image paths                          |
-| 💬 Open-source LLM        | Uses **TinyLlama** for query generation and response (via LangChain)        |
-| 🧑‍💻 Streamlit UI         | Simple interface for querying and visualizing results                        |
-| 🐳 Dockerized             | Easily deploy the app in a Docker container                                 |
-| 📦 Modular Codebase       | Separate scripts for preprocessing, indexing, and UI                        |
+| Feature                                 | Description                                                              |
+| --------------------------------------- | ------------------------------------------------------------------------ |
+| 🧠 Retrieval-Augmented Generation (RAG) | Combines dense vector search with generative capabilities                |
+| 🔤 Natural Language Search              | Search using plain English queries like "red Nike hoodie for women"      |
+| 🖼️ Image + Text Matching               | Matches both product descriptions and image captions                     |
+| 🪄 BLIP-2 Captioning                    | Uses BLIP-2 to auto-generate captions from product images                |
+| 🔎 E5 Embeddings                        | Uses `intfloat/e5-base-v2` to embed both text and image captions         |
+| 📦 ChromaDB Vector Store                | Efficient local similarity search with ChromaDB                          |
+| 🔁 Deduplication Logic                  | Avoids duplicate results when both text and image match same item        |
+| 💡 Result Merging                       | Merges matched text and caption content for final display and generation |
+| ⚙️ Modular Pipeline                     | Separate scripts for indexing and app UI — easy to debug and scale       |
+| 📺 Streamlit UI                         | Clean interface for querying and displaying results                      |
+| 🐳 Dockerized                           | Reproducible, portable setup using Docker and Docker Compose             |
+| ☁️ EC2-Ready                            | Works out of the box on AWS EC2 with volume mounting and exposed ports   |
 
 ---
 
 ## 📁 Project Structure
 
 ```
-project-root/
-├── app.py # Streamlit UI with RAG pipeline
-├── prepare_index.py # Embeds text + images and stores in Chroma in EC2 docker image
-├── data_preprocess.py # Extracts and cleans JSON data
-├── requirements.txt
-├── Dockerfile
-├── README.md
-├── .github/  Future enhancements for ci/cd deployments
-│ └── workflows/
-│ └── deploy.yml # GitHub Actions for CI/CD
+├── app.py # Streamlit app UI
+├── prepare_index.py # Generates BLIP-2 captions and embeddings
+├── requirements.txt # Python packages
+├── Dockerfile # Environment + install steps
+├── docker-compose.yml # Runtime definition for app
+├── .dockerignore # Ignore large/unneeded files from image
+├── abo-images-small/ # Your image folder (mounted, not copied)
+├── image_metadata.csv # Maps image_id → relative path
+└── README.md # This file
 ```
 
 
 ---
 
 
-# 🧠 RAG Streamlit App Deployment on AWS EC2 with Docker
-
-This guide walks you through deploying your Retrieval-Augmented Generation (RAG) app with Streamlit, ChromaDB, and image captioning on AWS EC2 using Docker.
 
 ---
 
-## 📦 Prerequisites
+## 🐳 Docker Setup Instructions (EC2 or local)
 
-- AWS account
-- EC2 instance (Ubuntu recommended, t2.medium or higher)
-- Port 8501 opened in the security group
-- GitHub repository with your app (e.g., `rag-streamlit-app`)
-- Docker installed on EC2
-- AWS CLI configured (optional if uploading to S3)
-
----
-
-## 🚀 1. Launch & Connect to EC2
-
-- Launch EC2 instance from AWS Console
-- Open **port 22** (SSH) and **8501** (for Streamlit)
-- SSH into your EC2:
+### ✅ 1. SSH into EC2 and clone the project
 
 ```bash
-ssh -i "your-key.pem" ubuntu@<your-ec2-public-ip>
+ssh -i your-key.pem ubuntu@<your-ec2-ip>
+git clone https://github.com/your-username/your-repo.git
+cd your-repo/
 ```
 
----
-
-## 🐳 2. Install Docker on EC2
-
+### ✅ 2. Build Docker image
 ```bash
-sudo apt update
-sudo apt install -y docker.io
-sudo usermod -aG docker $USER
-newgrp docker
+docker-compose build
 ```
 
----
-
-## 📁 3. Clone Your App
-
+### ✅ 3. Run indexing once
 ```bash
-git clone https://github.com/<your-username>/rag-streamlit-app.git
-cd rag-streamlit-app
+docker-compose run --rm rag python prepare_index.py
 ```
 
----
-
-## 📦 4. Build Docker Image
-
+### ✅ 4. Launch the Streamlit app
 ```bash
-docker build -t rag-app .
+docker-compose up -d
 ```
 
----
-
-## ▶️ 5. Run Docker Container
-
-```bash
-docker run -d -p 8501:8501 --name rag-container rag-app
-```
-
----
-
-## 🌐 6. Access the App
-
-Visit in your browser:
-
+### ✅ 5. Visit the URL
 ```
 http://<your-ec2-public-ip>:8501
 ```
 
 ---
 
-## 🧹 7. Debugging
+## 🧹 Debugging
 
 Check logs:
 
 ```bash
-docker logs rag-container
+docker-compose logs -f
 ```
 
-Remove stale containers:
-
-```bash
-docker rm -f rag-container
-```
 
 Rebuild if needed:
 
 ```bash
-docker build --no-cache -t rag-app .
-docker run -d -p 8501:8501 --name rag-container rag-app
-```
-
----
-
-## 💾 8. Optional: Upload ChromaDB to S3
-
-If enabled in your code:
-
-```bash
-aws s3 cp --recursive ./chroma_db s3://your-s3-bucket/chroma_db
+docker-compose down
+docker-compose up --build -d
 ```
 
 ---
