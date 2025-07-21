@@ -51,7 +51,8 @@ def get_image_by_id_from_metadata(image_id):
         return None, key
 
 def prepare_index():
-    df = get_clean_df_from_s3(BUCKET_NAME)
+    df = get_clean_df_from_s3(BUCKET_NAME)[:100]
+    df.head(20)
 
     # Load models
     #Smaller models
@@ -62,10 +63,13 @@ def prepare_index():
 
     # Larger models
     embedding_function = HuggingFaceEmbeddings(model_name="intfloat/e5-base-v2")
-    caption_processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
+    '''caption_processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
     caption_model = Blip2ForConditionalGeneration.from_pretrained(
         "Salesforce/blip2-opt-2.7b", device_map="auto", torch_dtype=torch.float16
-    )
+    )'''
+    caption_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+    caption_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base"
+                                                                 ).to("cuda" if torch.cuda.is_available() else "cpu")
 
     documents = []
     print("📁 Starting document creation and image captioning...")
@@ -106,7 +110,7 @@ def prepare_index():
         ))
 
         # ✅ Print progress every 5,000 items
-        if idx % 5000 == 0:
+        if idx % 5 == 0:
             print(f"✅ Processed {idx} rows")
 
     print("📁 Building Chroma index locally")
