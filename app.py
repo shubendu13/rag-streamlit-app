@@ -62,22 +62,25 @@ if query:
     for i, doc in enumerate(docs, start=1):
         meta = doc.metadata
         item_id = meta.get("item_id", "Unknown")
-        image_url = s3_to_http_url(meta.get("image_path", ""))
+        image_caption = meta.get("image_caption", "No caption Available")
 
         # Run summary chain on each document
         summary = summary_chain.run(context=doc.page_content)
 
         # Display results
         st.markdown(f"### 🛒 Product {i}: {item_id}")
-        st.markdown("*🤖 Summary:*")
-        st.write(summary)
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            image_path = meta.get("image_path")
+            if image_path:
+                image_url = s3_to_http_url(image_path)
+                st.image(image_url, width=200)
+                st.markdown((f"🖼️ Caption: {image_caption}"))
+            else:
+                st.warning("🚫 Image not available.")
 
-        st.markdown("*📄 Description:*")
-        st.write(doc.page_content)
-
-        if image_url:
-            st.image(image_url, caption=f"Item ID: {item_id}", use_column_width=True)
-        else:
-            st.warning("🚫 Image not available.")
+        with col2:
+            st.markdown("*🤖 Summary:*")
+            st.write(summary)
 
         st.markdown("---")

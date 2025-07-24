@@ -105,7 +105,8 @@ def prepare_index():
             page_content=combined_text,
             metadata={
                 "item_id": item_id,
-                "image_path": image_path
+                "image_path": image_path,
+                "image_caption": caption if caption else ""
             }
         ))
 
