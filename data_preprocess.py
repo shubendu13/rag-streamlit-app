@@ -105,6 +105,7 @@ def get_clean_df_from_s3(bucket_name="shubendu-rag-llm-app-bucket", prefix="Shop
 
     print(f"✅ Clean DataFrame ready with {len(df)} rows.")
 
-    df.head()
+    pd.set_option("display.max_colwidth", None)
+    print(df.head(10))
 
     return df
