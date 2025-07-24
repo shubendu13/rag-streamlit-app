@@ -3,6 +3,7 @@ from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.llms import HuggingFacePipeline
 from langchain.chains import RetrievalQA
+from langchain import PromptTemplate
 import torch
 
 # Set model device
@@ -21,6 +22,30 @@ vectordb = Chroma(
     embedding_function=embeddings
 )
 
+prompt_template = PromptTemplate(
+    input_variables=["context", "question"],
+    template="""### Instruction:
+You are a helpful product assistant. Use the following context to answer the question.
+
+The context contains product image captions and descriptions retrieved for relevant items.
+Give a **formatted answer** that clearly groups each product using bullet points.
+
+For each product:
+- Summarize it in **no more than 50 words**
+- Mention key features and details in simple bullet points.
+- Keep responses short and precise.
+- Assume the user will **see the image**, so write descriptions that complement it (don't repeat obvious visual info).
+
+### Context:
+{context}
+
+### Question:
+{question}
+
+### Response:
+"""
+)
+
 # Load open-source LLM (TinyLlama or similar)
 llm = HuggingFacePipeline.from_model_id(
     "TinyLlama/TinyLlama-1.1B-Chat-v1.0", # Smaller model
@@ -31,8 +56,10 @@ llm = HuggingFacePipeline.from_model_id(
 
 qa = RetrievalQA.from_chain_type(
     llm=llm,
-    retriever=vectordb.as_retriever(),
-    return_source_documents=True
+    retriever=vectordb.as_retriever(search_kwargs={"k": 3}),
+    return_source_documents=True,
+    chain_type="stuff",
+    chain_type_kwargs={"prompt": prompt_template}
 )
 
 st.title("🧠 Product Search (Text + Image RAG)")
@@ -49,9 +76,7 @@ def s3_to_http_url(s3_path):
     return s3_path
 
 if query:
-    full_query = f"Answer as a product specialist. Write concise answer in a formatted manner and use" \
-                 f" bullet points whenever necessary to explain the product item. Also - {query}"
-    result = qa(full_query)
+    result = qa(query)
     st.subheader("🤖 Answer")
     st.write(result["result"])
 
@@ -66,6 +91,6 @@ if query:
         else:
             st.warning("Image not available.")
 
-        st.markdown("**Description:**")
-        st.write(doc.page_content)
+        #st.markdown("**Description:**")
+        #st.write(doc.page_content)
         st.markdown("---")
