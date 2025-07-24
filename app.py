@@ -57,11 +57,17 @@ if query:
     retriever = vectordb.as_retriever(search_kwargs={"k": 3})
     docs = retriever.get_relevant_documents(query)
 
+    unique_items = {}
+    for doc in docs:
+        item_id = doc.metadata.get("item_id")
+        if item_id not in unique_items:
+            unique_items[item_id] = doc
+
     st.subheader("🔎 Retrieved Product Summaries")
 
-    for i, doc in enumerate(docs, start=1):
+    for i, (item_id, doc) in enumerate(unique_items.items(), start=1):
         meta = doc.metadata
-        item_id = meta.get("item_id", "Unknown")
+        #item_id = meta.get("item_id", "Unknown")
         image_caption = meta.get("image_caption", "No caption Available")
 
         # Run summary chain on each document
