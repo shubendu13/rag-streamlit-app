@@ -99,7 +99,7 @@ def prepare_index():
             image_path = None
 
         # Merge text_blob and caption
-        combined_text = f"{text_blob} | {caption}" if caption else text_blob
+        combined_text = f"{text_blob} \n Image Caption -  {caption}" if caption else text_blob
 
         documents.append(Document(
             page_content=combined_text,
